@@ -1,7 +1,6 @@
 package download
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"mime"
@@ -12,9 +11,9 @@ import (
 )
 
 type Download struct {
-	EnableLogging bool
-	LogAllHeaders bool
-	LogToFilePath string
+	EnableLogging                bool
+	LogAllHeaders                bool
+	ShouldDownloadResponseFilter func(*http.Response) bool
 }
 
 func (d *Download) DownloadFile(url string, downloadToDirectoryPath string) (err error) {
@@ -24,31 +23,34 @@ func (d *Download) DownloadFile(url string, downloadToDirectoryPath string) (err
 
 	resp, err := http.Get(url)
 	if err != nil {
-		d.logError(err)
+		log.Fatalln(err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	filePath, err := d.getTargetFilePath(downloadToDirectoryPath, url, resp)
-	if err != nil {
-		d.logError(err)
-		return err
-	}
+	if d.ShouldDownloadResponseFilter == nil || d.ShouldDownloadResponseFilter(resp) {
 
-	out, err := os.Create(filePath)
-	if err != nil {
-		d.logError(err)
-		return err
-	}
-	defer out.Close()
+		filePath, err := d.getTargetFilePath(downloadToDirectoryPath, url, resp)
+		if err != nil {
+			log.Fatalln(err)
+			return err
+		}
 
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		d.logError(err)
-		return err
-	}
+		out, err := os.Create(filePath)
+		if err != nil {
+			log.Fatalln(err)
+			return err
+		}
+		defer out.Close()
 
-	d.log("Downloaded " + filePath)
+		_, err = io.Copy(out, resp.Body)
+		if err != nil {
+			log.Fatalln(err)
+			return err
+		}
+
+		log.Println("Downloaded " + filePath)
+	}
 
 	return nil
 }
@@ -84,7 +86,7 @@ func (d *Download) getTargetFilePath(downloadToDirectoryPath string, url string,
 		if err == nil && params["filename"] != "" {
 			fileNamePart = params["filename"]
 		}
-		d.log(contentDisposition)
+		log.Println("Content-Disposition: " + contentDisposition)
 	}
 
 	fileNamePart = d.TrimExtraPartsFromFileName(fileNamePart)
@@ -100,30 +102,5 @@ func (d *Download) logAllResponseHeaders(resp *http.Response) {
 		for k, v := range resp.Header {
 			log.Println("Header:", k, "value:", v)
 		}
-	}
-}
-
-func (d *Download) logError(err error) {
-	d.log(err.Error())
-}
-
-func (d *Download) log(text string) {
-
-	if d.EnableLogging {
-
-		if d.LogToFilePath != "" {
-
-			f, err := os.OpenFile(d.LogToFilePath, os.O_APPEND|os.O_WRONLY, 0600)
-			if err != nil {
-				panic(err)
-			}
-			defer f.Close()
-
-			if _, err = f.WriteString(text + "\n"); err != nil {
-				panic(err)
-			}
-		}
-
-		fmt.Println(text)
 	}
 }
