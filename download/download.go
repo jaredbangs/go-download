@@ -16,15 +16,15 @@ type Download struct {
 	ShouldDownloadResponseFilter func(*http.Response) bool
 }
 
-func (d *Download) DownloadFile(url string, downloadToDirectoryPath string) (err error) {
+func (d *Download) DownloadFile(url string, downloadToDirectoryPath string) (downlaodedFilePath string, err error) {
 
 	//transport := &RedirectHandlingTransport{}
 	//client := &http.Client{Transport: transport}
 
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Fatalln(err)
-		return err
+		log.Println(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
@@ -32,27 +32,29 @@ func (d *Download) DownloadFile(url string, downloadToDirectoryPath string) (err
 
 		filePath, err := d.getTargetFilePath(downloadToDirectoryPath, url, resp)
 		if err != nil {
-			log.Fatalln(err)
-			return err
+			log.Println(err)
+			return "", err
 		}
 
 		out, err := os.Create(filePath)
 		if err != nil {
-			log.Fatalln(err)
-			return err
+			log.Println(err)
+			return "", err
 		}
 		defer out.Close()
 
 		_, err = io.Copy(out, resp.Body)
 		if err != nil {
-			log.Fatalln(err)
-			return err
+			log.Println(err)
+			return "", err
 		}
 
 		log.Println("Downloaded " + filePath)
-	}
+		return filePath, nil
+	} else {
 
-	return nil
+		return "", nil
+	}
 }
 
 func (d *Download) TrimExtraPartsFromFileName(fileName string) (adjustedFileName string) {
